@@ -17,7 +17,6 @@ dep_names = [
     'dav1d',
     'libsquish',
     'miniz',
-    'tinyexr',
     'lodepng',
     'astc-encoder',
     'simplewebp',
@@ -34,6 +33,7 @@ deps = []
 foreach n : dep_names
     deps += dependency(n)
 endforeach
+deps += subproject('tinyexr').get_variable('tinyexr_dep')
 
 bimg_lib = static_library(
     'bimg',

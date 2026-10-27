@@ -3271,21 +3271,29 @@ static const uint8_t s_pvrtcFactors[16][4] = {
 static const uint8_t s_pvrtcWeights[8][4] = {
     {8, 0, 8, 0}, {5, 3, 5, 3}, {3, 5, 3, 5}, {0, 8, 0, 8},
 
-    {8, 0, 8, 0}, {4, 4, 4, 4}, {4, 4, 4, 4}, {0, 8, 0, 8},
-};
+		{ 8, 0, 8, 0 },
+		{ 4, 4, 4, 4 },
+		{ 4, 4, 0, 0 },
+		{ 0, 8, 0, 8 },
+	};
 
-uint32_t morton2d(uint32_t _x, uint32_t _y) {
-  using namespace bx;
+	uint32_t morton2d(uint32_t _x, uint32_t _y, uint32_t _width, uint32_t _height)
+	{
+		using namespace bx;
 
-  const simd32_t xx = simd32_splat(_x);
-  const simd32_t yy = simd32_splat(_y);
-  const simd32_t tmpx = simd32_x32_part1by1(xx);
-  const simd32_t tmpy = simd32_x32_part1by1(yy);
-  const simd32_t xbits = simd32_x32_sll(tmpx, 1);
-  const simd32_t result = simd32_or(xbits, tmpy);
+		const uint32_t minDim = bx::min(_width, _height);
+		const uint32_t mask   = minDim - 1;
+		const uint32_t shift  = bx::countTrailingZeros(minDim);
 
-  return result.u32;
-}
+		const simd32_t xx     = simd32_splat(_x & mask);
+		const simd32_t yy     = simd32_splat(_y & mask);
+		const simd32_t tmpx   = simd32_x32_part1by1(xx);
+		const simd32_t tmpy   = simd32_x32_part1by1(yy);
+		const simd32_t xbits  = simd32_x32_sll(tmpx, 1);
+		const simd32_t result = simd32_or(xbits, tmpy);
+
+		return result.u32 | ( ( (_x | _y) & ~mask) << shift);
+	}
 
 uint32_t getColor(const uint8_t _src[8]) {
   return 0 | _src[7] << 24 | _src[6] << 16 | _src[5] << 8 | _src[4];
@@ -3328,13 +3336,13 @@ static void decodeBlockPtc14(uint8_t _dst[16 * 4], const uint8_t *_src,
   //                                 +-- B opaque    +-- A opaque   |
   //                                           alpha punchthrough --+
 
-  const uint8_t *bc = &_src[morton2d(_x, _y) * 8];
+		const uint8_t* bc = &_src[morton2d(_x, _y, _width, _height) * 8];
 
   uint32_t mod = 0 | bc[3] << 24 | bc[2] << 16 | bc[1] << 8 | bc[0];
 
-  const bool punchthrough = !!(bc[7] & 1);
-  const uint8_t *weightTable = s_pvrtcWeights[4 * punchthrough];
-  const uint8_t *factorTable = s_pvrtcFactors[0];
+		const bool punchthrough = !!(bc[4] & 1);
+		const uint8_t* weightTable = s_pvrtcWeights[4 * punchthrough];
+		const uint8_t* factorTable = s_pvrtcFactors[0];
 
   for (int yy = 0; yy < 4; ++yy) {
     const uint32_t yOffset = (yy < 2) ? -1 : 0;
@@ -3346,10 +3354,10 @@ static void decodeBlockPtc14(uint8_t _dst[16 * 4], const uint8_t *_src,
       const uint32_t x0 = (_x + xOffset) % _width;
       const uint32_t x1 = (x0 + 1) % _width;
 
-      const uint32_t bc0 = getColor(&_src[morton2d(x0, y0) * 8]);
-      const uint32_t bc1 = getColor(&_src[morton2d(x1, y0) * 8]);
-      const uint32_t bc2 = getColor(&_src[morton2d(x0, y1) * 8]);
-      const uint32_t bc3 = getColor(&_src[morton2d(x1, y1) * 8]);
+				const uint32_t bc0 = getColor(&_src[morton2d(x0, y0, _width, _height) * 8]);
+				const uint32_t bc1 = getColor(&_src[morton2d(x1, y0, _width, _height) * 8]);
+				const uint32_t bc2 = getColor(&_src[morton2d(x0, y1, _width, _height) * 8]);
+				const uint32_t bc3 = getColor(&_src[morton2d(x1, y1, _width, _height) * 8]);
 
       const uint8_t f0 = factorTable[0];
       const uint8_t f1 = factorTable[1];
@@ -3426,13 +3434,13 @@ static void decodeBlockPtc14A(uint8_t _dst[16 * 4], const uint8_t *_src,
   //                                 +-- B opaque    +-- A opaque   |
   //                                           alpha punchthrough --+
 
-  const uint8_t *bc = &_src[morton2d(_x, _y) * 8];
+		const uint8_t* bc = &_src[morton2d(_x, _y, _width, _height) * 8];
 
   uint32_t mod = 0 | bc[3] << 24 | bc[2] << 16 | bc[1] << 8 | bc[0];
 
-  const bool punchthrough = !!(bc[7] & 1);
-  const uint8_t *weightTable = s_pvrtcWeights[4 * punchthrough];
-  const uint8_t *factorTable = s_pvrtcFactors[0];
+		const bool punchthrough = !!(bc[4] & 1);
+		const uint8_t* weightTable = s_pvrtcWeights[4 * punchthrough];
+		const uint8_t* factorTable = s_pvrtcFactors[0];
 
   for (int yy = 0; yy < 4; ++yy) {
     const uint32_t yOffset = (yy < 2) ? -1 : 0;
@@ -3444,10 +3452,10 @@ static void decodeBlockPtc14A(uint8_t _dst[16 * 4], const uint8_t *_src,
       const uint32_t x0 = (_x + xOffset) % _width;
       const uint32_t x1 = (x0 + 1) % _width;
 
-      const uint32_t bc0 = getColor(&_src[morton2d(x0, y0) * 8]);
-      const uint32_t bc1 = getColor(&_src[morton2d(x1, y0) * 8]);
-      const uint32_t bc2 = getColor(&_src[morton2d(x0, y1) * 8]);
-      const uint32_t bc3 = getColor(&_src[morton2d(x1, y1) * 8]);
+				const uint32_t bc0 = getColor(&_src[morton2d(x0, y0, _width, _height) * 8]);
+				const uint32_t bc1 = getColor(&_src[morton2d(x1, y0, _width, _height) * 8]);
+				const uint32_t bc2 = getColor(&_src[morton2d(x0, y1, _width, _height) * 8]);
+				const uint32_t bc3 = getColor(&_src[morton2d(x1, y1, _width, _height) * 8]);
 
       const uint8_t f0 = factorTable[0];
       const uint8_t f1 = factorTable[1];
@@ -3518,8 +3526,7 @@ ImageContainer *imageAlloc(bx::AllocatorI *_allocator,
     return NULL;
   }
 
-  ImageContainer *imageContainer = (ImageContainer *)bx::alignedAlloc(
-      _allocator, size + bx::alignUp(sizeof(ImageContainer), 16), 16);
+		ImageContainer* imageContainer = (ImageContainer*)bx::alignedAlloc(_allocator, size_t(size) + bx::alignUp(sizeof(ImageContainer), 16), 16);
 
   imageContainer->m_allocator = _allocator;
   imageContainer->m_data = bx::alignPtr(imageContainer + 1, 0, 16);
@@ -6330,24 +6337,22 @@ void imageDecodeToR8(bx::AllocatorI *_allocator, void *_dst, const void *_src,
   const uint32_t srcBpp = s_imageBlockInfo[_srcFormat].bitsPerPixel;
   const uint32_t srcPitch = _width * srcBpp / 8;
 
-  for (uint32_t zz = 0; zz < _depth;
-       ++zz, src += _height * srcPitch, dst += _height * _dstPitch) {
-    if (isCompressed(_srcFormat)) {
-      uint64_t size = imageGetSize(NULL, _width, _height, 0, false, false, 1,
-                                   TextureFormat::RGBA8);
-      void *temp = bx::alloc(_allocator, size);
-      imageDecodeToRgba8(_allocator, temp, _src, _width, _height, _width * 4,
-                         _srcFormat);
-      imageConvert(_allocator, dst, TextureFormat::R8, temp,
-                   TextureFormat::RGBA8, _width, _height, 1, _width * 4,
-                   _dstPitch);
-      bx::free(_allocator, temp);
-    } else {
-      imageConvert(_allocator, dst, TextureFormat::R8, src, _srcFormat, _width,
-                   _height, 1, srcPitch, _dstPitch);
-    }
-  }
-}
+		for (uint32_t zz = 0; zz < _depth; ++zz, src += _height*srcPitch, dst += _height*_dstPitch)
+		{
+			if (isCompressed(_srcFormat))
+			{
+				uint64_t size = imageGetSize(NULL, _width, _height, 0, false, false, 1, TextureFormat::RGBA8);
+				void* temp = bx::alloc(_allocator, size_t(size) );
+				imageDecodeToRgba8(_allocator, temp, src, _width, _height, _width*4, _srcFormat);
+				imageConvert(_allocator, dst, TextureFormat::R8, temp, TextureFormat::RGBA8, _width, _height, 1, _width*4, _dstPitch);
+				bx::free(_allocator, temp);
+			}
+			else
+			{
+				imageConvert(_allocator, dst, TextureFormat::R8, src, _srcFormat, _width, _height, 1, srcPitch, _dstPitch);
+			}
+		}
+	}
 
 void imageDecodeToBgra8(bx::AllocatorI *_allocator, void *_dst,
                         const void *_src, uint32_t _width, uint32_t _height,
@@ -6891,8 +6896,14 @@ void imageDecodeToRgba8(bx::AllocatorI *_allocator, void *_dst,
         ASTCENC_SWZ_A,
     };
 
-    status = astcenc_decompress_image(context, (const uint8_t *)_src, size,
-                                      &image, &swizzle, 0);
+					status = astcenc_decompress_image(
+						  context
+						, (const uint8_t*)_src
+						, size_t(size)
+						, &image
+						, &swizzle
+						, 0
+						);
 
     if (status != ASTCENC_SUCCESS) {
       BX_TRACE("astc error in compress image %s",
@@ -7053,23 +7064,23 @@ void imageDecodeToRgba32f(bx::AllocatorI *_allocator, void *_dst,
       bx::memCopy(dst, src, _dstPitch * _height);
       break;
 
-    default:
-      if (isCompressed(_srcFormat)) {
-        uint64_t size = imageGetSize(NULL, _width, _height, 0, false, false, 1,
-                                     TextureFormat::RGBA8);
-        void *temp = bx::alloc(_allocator, size);
-        imageDecodeToRgba8(_allocator, temp, src, _width, _height, _width * 4,
-                           _srcFormat);
-        imageRgba8ToRgba32f(dst, _width, _height, _width * 4, temp);
-        bx::free(_allocator, temp);
-      } else {
-        imageConvert(_allocator, dst, TextureFormat::RGBA32F, src, _srcFormat,
-                     _width, _height, 1, srcPitch, _dstPitch);
-      }
-      break;
-    }
-  }
-}
+			default:
+				if (isCompressed(_srcFormat) )
+				{
+					uint64_t size = imageGetSize(NULL, _width, _height, 0, false, false, 1, TextureFormat::RGBA8);
+					void* temp = bx::alloc(_allocator, size_t(size) );
+					imageDecodeToRgba8(_allocator, temp, src, _width, _height, _width*4, _srcFormat);
+					imageRgba8ToRgba32f(dst, _width, _height, _width*4, temp);
+					bx::free(_allocator, temp);
+				}
+				else
+				{
+					imageConvert(_allocator, dst, TextureFormat::RGBA32F, src, _srcFormat, _width, _height, 1, srcPitch, _dstPitch);
+				}
+				break;
+			}
+		}
+	}
 
 bool imageGetRawData(const ImageContainer &_imageContainer, uint16_t _side,
                      uint8_t _lod, const void *_data, uint32_t _size,

@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://github.com/liriosha/mbx.git
+url = https://github.com/neptuwunium/mbx.git
 revision = HEAD
 depth = 1
 [provide]

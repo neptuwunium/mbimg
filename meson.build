@@ -1,11 +1,6 @@
 project('bimg', ['cpp', 'c'], default_options: ['unity=on', 'cpp_std=c++20', 'c_std=c11'])
 add_project_arguments('-funsigned-char', language: 'cpp')
 
-if host_machine.system() == 'Linux'
-    add_project_arguments('-fPIC', language: 'cpp')
-endif
-
-cc = meson.get_compiler('cpp')
 fs = import('fs')
 sources = []
 foreach s : fs.read('sources.txt').strip().split('\n')
@@ -35,10 +30,15 @@ foreach n : dep_names
 endforeach
 deps += subproject('tinyexr').get_variable('tinyexr_dep')
 
+cpp = meson.get_compiler('cpp')
+bimg_args = cpp.get_supported_arguments('-Wno-gnu-zero-variadic-macro-arguments')
+
 bimg_lib = static_library(
     'bimg',
     sources,
     include_directories: 'include',
+    pic: host_machine.system() == 'linux',
+    cpp_args: bimg_args,
     dependencies: deps,
 )
 

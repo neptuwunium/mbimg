@@ -1,5 +1,11 @@
 project('nvtt', 'cpp')
 
+cpp = meson.get_compiler('cpp')
+compile_opts = cpp.get_supported_arguments(
+    '-Wno-invalid-utf8',
+    '-Wno-gnu-anonymous-struct',
+    '-Wno-nested-anon-types')
+
 nvtt_lib = static_library(
     'nvtt',
     [
@@ -22,6 +28,7 @@ nvtt_lib = static_library(
     ],
     include_directories: '.',
     dependencies: dependency('bx'),
+	cpp_args : compile_opts,
     override_options: ['unity=off'],
 )
 
